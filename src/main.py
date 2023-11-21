@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from pathlib import Path
 from uuid import uuid4
@@ -11,8 +12,8 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-BUCKET_NAME = "doc-reading-poc"
-REGION_NAME = "eu-central-1"
+BUCKET_NAME = os.getenv("AWS_BUCKET")
+REGION_NAME = os.getenv("AWS_REGION")
 
 NORMALIZED_FIELDS = [
     "INVOICE_RECEIPT_DATE",
