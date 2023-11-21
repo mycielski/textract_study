@@ -49,5 +49,5 @@ Some code I've written when learning what is Textract and how to use it.
 
 ## Notes
 
-- This script uses busy waiting for Textract job results (in the `retrieve_analyses` function). It is not optimal, do not do as I have done there. Textract can publish notifications about finished jobs, so use that instead of stupidly asking about each job "is it done yet??" like my code does.
+- This script uses busy waiting for Textract job results (in the `retrieve_analyses` function). It is not optimal. In fact, it is pretty terrible for performance. Use [notifications](https://docs.aws.amazon.com/textract/latest/dg/api-async.html#:~:text=The%20completion%20status%20of%20the%20request%20is%20published%20to%20an%20Amazon%20Simple%20Notification%20Service%20(Amazon%20SNS)%20topic.) instead.
 - The whole thing is just one file. Terrible for legibility but eh, it works.
