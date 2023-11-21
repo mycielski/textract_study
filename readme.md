@@ -46,4 +46,8 @@ Some code I've written when learning what is Textract and how to use it.
     └── src
         └── main.py
     ```
+
+## Notes
+
+This script uses busy waiting for Textract job results. It is not optimal, do not do as I have done there.
    
