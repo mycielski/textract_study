@@ -245,7 +245,7 @@ def main():
     job_id = str(uuid4())
     logging.info(f"Job ID: {job_id}")
     files = enumerate_directory(
-        dir_path=Path("demo_data"), relevant_extensions=["png", "pdf"]
+        dir_path=Path("demo_data"), relevant_extensions=["png", "jpg", "pdf"]
     )
     keys = upload_files(files=files, prefix=job_id)
     job_ids = start_document_analyses(keys=keys)
