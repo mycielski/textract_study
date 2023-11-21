@@ -49,5 +49,5 @@ Some code I've written when learning what is Textract and how to use it.
 
 ## Notes
 
-This script uses busy waiting for Textract job results (in the `retrieve_analyses` function). It is not optimal, do not do as I have done there. Textract can publish notifications about finished jobs, so use that instead of stupidly asking about each job "is it done yet??" like my code does.
-   
+- This script uses busy waiting for Textract job results (in the `retrieve_analyses` function). It is not optimal, do not do as I have done there. Textract can publish notifications about finished jobs, so use that instead of stupidly asking about each job "is it done yet??" like my code does.
+- The whole thing is just one file. Terrible for legibility but eh, it works.
