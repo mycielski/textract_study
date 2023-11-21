@@ -1,5 +1,7 @@
 # AWS Textract study
 
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
 Some code I've written when learning what is Textract and how to use it.
 
 ## How to use it?
