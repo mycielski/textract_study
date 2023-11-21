@@ -1,6 +1,14 @@
+"""
+This module provides functionality to process invoice receipts,
+extract information using Amazon Textract, and compile a report from the extracted data.
+It supports uploading and analyzing documents stored in a local directory to an AWS S3 bucket,
+starting and monitoring Textract analysis jobs, and summarizing the results into a pandas DataFrame
+which is then exported to an Excel file.
+"""
+
+
 import logging
 import os
-import time
 from pathlib import Path
 from uuid import uuid4
 
@@ -118,6 +126,13 @@ def enumerate_directory(dir_path: Path, relevant_extensions: list[str]) -> list[
 
 
 def upload_files(files: list[Path], prefix: str) -> list[str]:
+    """
+    Upload multiple files to an AWS S3 bucket.
+
+    :param files: A list of Paths to the files to be uploaded.
+    :param prefix: A prefix to prepend to the file names for organizational purposes.
+    :return: A list of the full S3 keys for the uploaded files.
+    """
     keys = []
     logging.info(f"Starting upload of {len(files)} files to {BUCKET_NAME}/{prefix}")
     for file in tqdm(files):
@@ -129,6 +144,12 @@ def upload_files(files: list[Path], prefix: str) -> list[str]:
 
 
 def analyse_document(key: str):
+    """
+    Analyze a document using Amazon Textract.
+
+    :param key: The S3 key of the document to analyze.
+    :return: The response from the Textract client.
+    """
     logging.debug(f"Starting analysis of {key}")
     textract_client = boto3.client("textract", region_name=REGION_NAME)
     response = textract_client.analyze_expense(
@@ -139,6 +160,12 @@ def analyse_document(key: str):
 
 
 def start_document_analyses(keys: list[str]) -> list[str]:
+    """
+    Start the analysis process for multiple documents using Amazon Textract.
+
+    :param keys: A list of S3 keys representing the documents to be analyzed.
+    :return: A list of job IDs for the initiated Textract jobs.
+    """
     job_ids = []
     logging.info(f"Starting analysis of {len(keys)} files")
     for key in tqdm(keys):
@@ -148,6 +175,12 @@ def start_document_analyses(keys: list[str]) -> list[str]:
 
 
 def start_document_analysis(key: str) -> str:
+    """
+    Start a Textract analysis job for a single document.
+
+    :param key: The S3 key of the document to analyze.
+    :return: The job ID for the Textract analysis job.
+    """
     logging.debug(f"Starting analysis job for {key}")
     textract_client = boto3.client("textract", region_name=REGION_NAME)
     response = textract_client.start_expense_analysis(
@@ -158,6 +191,12 @@ def start_document_analysis(key: str) -> str:
 
 
 def analyse_documents(keys: list[str]):
+    """
+    Analyze multiple documents and return their Textract responses.
+
+    :param keys: A list of S3 keys for the documents to be analyzed.
+    :return: A list of responses from the Textract client.
+    """
     responses = []
     logging.info(f"Starting analysis of {len(keys)} files")
     for key in tqdm(keys):
@@ -166,7 +205,13 @@ def analyse_documents(keys: list[str]):
     return responses
 
 
-def summarize(textract_response: dict) -> dict:
+def summarize_textraction(textract_response: dict) -> dict:
+    """
+    Summarize a Textract response into a dictionary containing key information.
+
+    :param textract_response: The response from the Textract service.
+    :return: A dictionary with the summarized information.
+    """
     summary_fields = textract_response["ExpenseDocuments"][0]["SummaryFields"]
     output = {}
     for field in summary_fields:
@@ -179,6 +224,12 @@ def summarize(textract_response: dict) -> dict:
 
 
 def compile_report(textract_responses: list[dict]) -> pd.DataFrame:
+    """
+    Compile a report from a list of Textract responses into a pandas DataFrame.
+
+    :param textract_responses: A list of dictionaries containing Textract responses.
+    :return: A pandas DataFrame representing the compiled report.
+    """
     logging.info(f"Compiling report from {len(textract_responses)} textract responses")
     # create a new df with columns from NORMALIZED_FIELDS
     report = pd.DataFrame(columns=NORMALIZED_FIELDS)
@@ -186,42 +237,50 @@ def compile_report(textract_responses: list[dict]) -> pd.DataFrame:
     for response in textract_responses:
         # create dict from NORMALIZED_FIELDS
         new_row_dict = {field: None for field in NORMALIZED_FIELDS}
-        new_row_dict.update(summarize(response))
+        new_row_dict.update(summarize_textraction(textract_response=response))
         new_row_df = pd.DataFrame([new_row_dict])
         report = pd.concat([report, new_row_df], ignore_index=True)
 
-    logging.info(f"Report compilation finished")
+    logging.info("Report compilation finished")
 
     return report
 
 
 def retrieve_analyses(job_ids: list[str]) -> list[dict]:
+    """
+    Retrieve the analysis results for a list of Textract job IDs.
+
+    :param job_ids: A list of job IDs for which to retrieve the results.
+    :return: A list of dictionaries containing the analysis results.
+    """
     logging.info(f"Retrieving analyses for {len(job_ids)} jobs")
     textract_client = boto3.client("textract", region_name=REGION_NAME)
     responses = []
     total_jobs = len(job_ids)
-    for job_id in job_ids:
+
+    progress_bar = tqdm(total=total_jobs)
+    while job_ids:
+        job_id = job_ids.pop()
         response = textract_client.get_expense_analysis(JobId=job_id)
         match response["JobStatus"]:
             case "SUCCEEDED":
                 logging.debug(f"Job {job_id} succeeded")
-                logging.info(
-                    f"Retrieved analyses for {len(responses)}/{total_jobs} jobs"
-                )
                 responses.append(response)
+                progress_bar.update(1)
             case "IN_PROGRESS":
                 logging.debug(f"Job {job_id} still in progress")
                 job_ids.append(job_id)
-                time.sleep(1)
             case "FAILED":
-                logging.info(f"Job {job_id} failed")
+                logging.warning(f"Job {job_id} failed")
+                progress_bar.update(1)
             case "PARTIAL_SUCCESS":
-                logging.info(f"Job {job_id} partially succeeded")
+                logging.warning(f"Job {job_id} partially succeeded")
+                responses.append(response)
+                progress_bar.update(1)
             case _:
-                logging.info(f"Job {job_id} in unknown state")
+                logging.warning(f"Job {job_id} in unknown state")
 
-        logging.debug(f"Retrieved analyses for {len(responses)}/{total_jobs} jobs")
-
+    progress_bar.close()
     logging.info(f"Retrieved analyses for {total_jobs} jobs")
     return responses
 
@@ -233,15 +292,19 @@ def prettify_report(report: pd.DataFrame) -> pd.DataFrame:
     :param report: A pandas DataFrame.
     :return: A pandas DataFrame with columns with values dropped.
     """
-    logging.info(f"Prettifying the report")
+    logging.info("Prettifying the report")
     # Drop columns where all values are NaN
     logging.debug("Dropping columns where each row's value is empty")
     report_pretty = report.dropna(axis=1, how="all")
-    logging.info(f"Prettified the report")
+    logging.info("Prettified the report")
     return report_pretty
 
 
 def main():
+    """
+    The main execution function for the script. Orchestrates the process of uploading files,
+    initiating analysis jobs, compiling results, and exporting a report.
+    """
     logging.info("Starting...")
     job_id = str(uuid4())
     logging.info(f"Job ID: {job_id}")
