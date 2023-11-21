@@ -90,9 +90,9 @@ def upload_file_to_s3(local_file_path: Path, s3_key: str, prefix: str) -> str:
     s3_key = f"{prefix}/{s3_key}"
 
     # Upload the file
-    logging.debug(f"Uploading {local_file_path} to {BUCKET_NAME}/{s3_key}")
+    logging.debug("Uploading %s to %s/%s", local_file_path, BUCKET_NAME, s3_key)
     s3_client.upload_file(str(local_file_path), BUCKET_NAME, s3_key)
-    logging.debug(f"Uploaded {local_file_path} to {BUCKET_NAME}/{s3_key}")
+    logging.debug("Uploaded %s to %s/%s", local_file_path, BUCKET_NAME, s3_key)
 
     return s3_key
 
@@ -113,7 +113,7 @@ def enumerate_directory(dir_path: Path, relevant_extensions: list[str]) -> list[
     relevant_files = []
 
     logging.info(
-        f"Searching for files with extensions: {relevant_extensions} in {dir_path}"
+        "Searching for files with extensions: %s in %s", relevant_extensions, dir_path
     )
 
     for extension in relevant_extensions:
@@ -121,7 +121,7 @@ def enumerate_directory(dir_path: Path, relevant_extensions: list[str]) -> list[
         for file in dir_path.rglob(f"*.{extension}"):
             relevant_files.append(file)
 
-    logging.info(f"Found {len(relevant_files)} files")
+    logging.info("Found %s files", len(relevant_files))
     return relevant_files
 
 
@@ -134,12 +134,14 @@ def upload_files(files: list[Path], prefix: str) -> list[str]:
     :return: A list of the full S3 keys for the uploaded files.
     """
     keys = []
-    logging.info(f"Starting upload of {len(files)} files to {BUCKET_NAME}/{prefix}")
+    logging.info(
+        "Starting upload of %s files to %s/%s", len(files), BUCKET_NAME, prefix
+    )
     for file in tqdm(files):
         keys.append(
             upload_file_to_s3(prefix=prefix, local_file_path=file, s3_key=file.name)
         )
-    logging.info(f"Uploaded {len(keys)} files to {BUCKET_NAME}/{prefix}")
+    logging.info("Uploaded %s files to %s/%s", len(files), BUCKET_NAME, prefix)
     return keys
 
 
@@ -150,12 +152,12 @@ def analyse_document(key: str):
     :param key: The S3 key of the document to analyze.
     :return: The response from the Textract client.
     """
-    logging.debug(f"Starting analysis of {key}")
+    logging.debug("Starting analysis of %s", key)
     textract_client = boto3.client("textract", region_name=REGION_NAME)
     response = textract_client.analyze_expense(
         Document={"S3Object": {"Bucket": BUCKET_NAME, "Name": key}}
     )
-    logging.debug(f"Finished analysis of {key}")
+    logging.debug("Finished analysis of %s", key)
     return response
 
 
@@ -167,10 +169,12 @@ def start_document_analyses(keys: list[str]) -> list[str]:
     :return: A list of job IDs for the initiated Textract jobs.
     """
     job_ids = []
-    logging.info(f"Starting analysis of {len(keys)} files")
+    logging.info("Starting analysis of %s files", len(keys))
     for key in tqdm(keys):
         job_ids.append(start_document_analysis(key=key))
-    logging.info(f"{len(job_ids)} jobs started")
+    logging.info("%s jobs started", len(keys))
+    # reverse the list so that the first job started is the first job in the list
+    job_ids.reverse()
     return job_ids
 
 
@@ -181,12 +185,12 @@ def start_document_analysis(key: str) -> str:
     :param key: The S3 key of the document to analyze.
     :return: The job ID for the Textract analysis job.
     """
-    logging.debug(f"Starting analysis job for {key}")
+    logging.debug("Starting analysis job for %s", key)
     textract_client = boto3.client("textract", region_name=REGION_NAME)
     response = textract_client.start_expense_analysis(
         DocumentLocation={"S3Object": {"Bucket": BUCKET_NAME, "Name": key}}
     )
-    logging.debug(f"Analysis job for {key} started. Job ID: {response['JobId']}")
+    logging.debug("Analysis job for %s started. Job ID: %s", key, response["JobId"])
     return response["JobId"]
 
 
@@ -198,10 +202,10 @@ def analyse_documents(keys: list[str]):
     :return: A list of responses from the Textract client.
     """
     responses = []
-    logging.info(f"Starting analysis of {len(keys)} files")
+    logging.info("Starting analysis of %s files", len(keys))
     for key in tqdm(keys):
         responses.append(analyse_document(key=key))
-    logging.info(f"Finished analysis of {len(keys)} files")
+    logging.info("Finished analysis of %s files", len(keys))
     return responses
 
 
@@ -212,13 +216,19 @@ def summarize_textraction(textract_response: dict) -> dict:
     :param textract_response: The response from the Textract service.
     :return: A dictionary with the summarized information.
     """
-    summary_fields = textract_response["ExpenseDocuments"][0]["SummaryFields"]
+    summary_fields = []
+    for document in textract_response["ExpenseDocuments"]:
+        summary_fields.extend(document["SummaryFields"])
+
     output = {}
+    logging.info("Summarizing textraction response")
     for field in summary_fields:
         field_type = field["Type"]["Text"]
         field_value = field["ValueDetection"]["Text"]
+        logging.debug("Found %s: %s", field_type, field_value)
         if field_type in NORMALIZED_FIELDS:
             output[field_type] = field_value
+    logging.info("Finished summarizing textraction response")
 
     return output
 
@@ -230,7 +240,7 @@ def compile_report(textract_responses: list[dict]) -> pd.DataFrame:
     :param textract_responses: A list of dictionaries containing Textract responses.
     :return: A pandas DataFrame representing the compiled report.
     """
-    logging.info(f"Compiling report from {len(textract_responses)} textract responses")
+    logging.info("Compiling report from %s textract responses", len(textract_responses))
     # create a new df with columns from NORMALIZED_FIELDS
     report = pd.DataFrame(columns=NORMALIZED_FIELDS)
 
@@ -253,7 +263,7 @@ def retrieve_analyses(job_ids: list[str]) -> list[dict]:
     :param job_ids: A list of job IDs for which to retrieve the results.
     :return: A list of dictionaries containing the analysis results.
     """
-    logging.info(f"Retrieving analyses for {len(job_ids)} jobs")
+    logging.info("Retrieving analyses for %s jobs", len(job_ids))
     textract_client = boto3.client("textract", region_name=REGION_NAME)
     responses = []
     total_jobs = len(job_ids)
@@ -264,24 +274,24 @@ def retrieve_analyses(job_ids: list[str]) -> list[dict]:
         response = textract_client.get_expense_analysis(JobId=job_id)
         match response["JobStatus"]:
             case "SUCCEEDED":
-                logging.debug(f"Job {job_id} succeeded")
+                logging.debug("Job %s succeeded", job_id)
                 responses.append(response)
                 progress_bar.update(1)
             case "IN_PROGRESS":
-                logging.debug(f"Job {job_id} still in progress")
+                logging.debug("Job %s still in progress", job_id)
                 job_ids.append(job_id)
             case "FAILED":
-                logging.warning(f"Job {job_id} failed")
+                logging.warning("Job %s failed", job_id)
                 progress_bar.update(1)
             case "PARTIAL_SUCCESS":
-                logging.warning(f"Job {job_id} partially succeeded")
+                logging.warning("Job %s partially succeeded", job_id)
                 responses.append(response)
                 progress_bar.update(1)
             case _:
-                logging.warning(f"Job {job_id} in unknown state")
+                logging.warning("Job %s in unknown state", job_id)
 
     progress_bar.close()
-    logging.info(f"Retrieved analyses for {total_jobs} jobs")
+    logging.info("Retrieved analyses for %s jobs", total_jobs)
     return responses
 
 
@@ -307,7 +317,7 @@ def main():
     """
     logging.info("Starting...")
     job_id = str(uuid4())
-    logging.info(f"Job ID: {job_id}")
+    logging.info("Job ID: %s", job_id)
     files = enumerate_directory(
         dir_path=Path("demo_data"), relevant_extensions=["png", "jpg", "pdf"]
     )
