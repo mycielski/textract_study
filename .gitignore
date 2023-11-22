@@ -366,4 +366,6 @@ zsdoc/data
 
 demo_data
 *.json
+*.csv
 *.xlsx
+output

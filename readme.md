@@ -33,15 +33,19 @@ Some code I've written when learning what is Textract and how to use it.
     $ python src/main.py
     ```
 
-4. The report will be generated with a name like `<uuid>.xlsx` in the top directory:
+4. The report will be generated with a name like `<uuid>.xlsx`:
     ```sh
     .
-    ├── 456af71d-f7b2-4bf8-87c7-bade21d843d4.xlsx
     ├── demo_data
     │   ├── invoice.pdf
     │   └── invoices
     │       ├── other_invoice.jpg
     │       └── and_one_more_invoice.png
+    ├── output
+    │   └── 456af71d-f7b2-4bf8-87c7-bade21d843d4
+    │       ├── report.csv
+    │       ├── report.json
+    │       └── report.xlsx
     ├── readme.md
     └── src
         └── main.py

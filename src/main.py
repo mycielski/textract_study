@@ -221,14 +221,14 @@ def summarize_textraction(textract_response: dict) -> dict:
         summary_fields.extend(document["SummaryFields"])
 
     output = {}
-    logging.info("Summarizing textraction response")
+    logging.debug("Summarizing textraction response")
     for field in summary_fields:
         field_type = field["Type"]["Text"]
         field_value = field["ValueDetection"]["Text"]
         logging.debug("Found %s: %s", field_type, field_value)
         if field_type in NORMALIZED_FIELDS:
             output[field_type] = field_value
-    logging.info("Finished summarizing textraction response")
+    logging.debug("Finished summarizing textraction response")
 
     return output
 
@@ -244,12 +244,14 @@ def compile_report(textract_responses: list[dict]) -> pd.DataFrame:
     # create a new df with columns from NORMALIZED_FIELDS
     report = pd.DataFrame(columns=NORMALIZED_FIELDS)
 
+    logging.info("Summarizing %s textraction responses", len(textract_responses))
     for response in textract_responses:
         # create dict from NORMALIZED_FIELDS
         new_row_dict = {field: None for field in NORMALIZED_FIELDS}
         new_row_dict.update(summarize_textraction(textract_response=response))
         new_row_df = pd.DataFrame([new_row_dict])
         report = pd.concat([report, new_row_df], ignore_index=True)
+    logging.info("Summarized %s textraction responses", len(textract_responses))
 
     logging.info("Report compilation finished")
 
@@ -271,7 +273,9 @@ def retrieve_analyses(job_ids: list[str]) -> list[dict]:
     progress_bar = tqdm(total=total_jobs)
     while job_ids:
         job_id = job_ids.pop()
+        logging.debug("Retrieving analysis status for job %s", job_id)
         response = textract_client.get_expense_analysis(JobId=job_id)
+        logging.debug("Retrieved analysis status for job %s", job_id)
         match response["JobStatus"]:
             case "SUCCEEDED":
                 logging.debug("Job %s succeeded", job_id)
@@ -326,7 +330,42 @@ def main():
     responses = retrieve_analyses(job_ids=job_ids)
     report = compile_report(responses)
     report = prettify_report(report)
-    report.to_excel(f"{job_id}.xlsx", index=False)
+    save_report(job_id, report, destination_dir=os.path.join(os.getcwd(), "output"))
+
+
+def save_report(
+    job_id: str, report: pd.DataFrame, destination_dir: os.getcwd()
+) -> None:
+    """
+    Save a report to disk. The report is saved as an Excel file, a JSON file, and a CSV file.
+
+    :param job_id: The ID of the job for which the report was generated.
+    :param report: The pandas DataFrame representing the report.
+    :param destination_dir: The directory to which the report should be saved.
+    :return: None
+    """
+    destination_dir = Path(destination_dir)
+    destination_dir = os.path.join(destination_dir, job_id)
+    # create the directory if it doesn't exist
+    if not os.path.exists(destination_dir):
+        logging.debug("Creating directory %s", destination_dir)
+        os.makedirs(destination_dir)
+        logging.debug("Created directory %s", destination_dir)
+
+    logging.info("Saving reports to %s", destination_dir)
+
+    logging.debug("Saving report.json")
+    report.to_json(os.path.join(destination_dir, "report.json"), orient="records")
+    logging.debug("Saved report.json")
+
+    logging.debug("Saving report.csv")
+    report.to_csv(os.path.join(destination_dir, "report.csv"), index=False)
+    logging.debug("Saved report.csv")
+
+    logging.debug("Saving report.xlsx")
+    # report.T.to_excel(os.path.join(destination_dir, "report.xlsx"))
+    report.to_excel(os.path.join(destination_dir, "report.xlsx"), index=False)
+    logging.debug("Saved report.xlsx")
 
 
 if __name__ == "__main__":
