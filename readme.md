@@ -4,6 +4,8 @@
 
 Some code I've written when learning what is Textract and how to use it.
 
+The project also contains a shell script which uses the AWS CLI v2 to perform the same task.
+
 ## How to use it?
 
 1. Put your invoices in the `demo_data` directory.

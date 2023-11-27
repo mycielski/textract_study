@@ -14,8 +14,7 @@ trap "rm -f /tmp/s3_objects" EXIT INT TERM HUP
 
 # shellcheck disable=SC2140
 # shellcheck disable=SC2016
-#find "$1" -type f \( -name "*.png" -or -name "*.jpg" -or -name "*.jpeg" -or -name "*.pdf" \) -print0 |
-find "$1" -type f \( -name "*.png" \) -print0 |
+find "$1" -type f \( -name "*.png" -or -name "*.jpg" -or -name "*.jpeg" -or -name "*.pdf" \) -print0 |
 xargs -0 -n 1 -P $workers -I {} aws s3 cp --no-progress "{}" s3://"$AWS_BUCKET"/"$job_uuid"/"{}" >> /tmp/s3_objects &
 
 awk -F  "s3://$AWS_BUCKET/" '{print $2}' /tmp/s3_objects |
